@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fun Friday Football</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Landing Screen -->
+  <div id="landing" class="screen active">
+    <div class="container">
+      <h1 class="title">Fun Friday Football</h1>
+      <p class="subtitle">8v8 Multiplayer</p>
+      <div class="ball-icon">&#9917;</div>
+      <div class="form-group">
+        <input type="text" id="playerName" placeholder="Enter your name" maxlength="15" autocomplete="off">
+      </div>
+      <div class="button-row">
+        <button id="btnCreate" class="btn btn-primary">Create Room</button>
+        <button id="btnJoinShow" class="btn btn-secondary">Join Room</button>
+      </div>
+      <div id="joinSection" class="join-section hidden">
+        <div class="form-group">
+          <input type="text" id="roomCodeInput" placeholder="Room code (e.g. GOAL)" maxlength="4" autocomplete="off" style="text-transform: uppercase">
+        </div>
+        <button id="btnJoin" class="btn btn-primary">Join</button>
+      </div>
+      <p id="landingError" class="error hidden"></p>
+    </div>
+  </div>
+
+  <!-- Lobby Screen -->
+  <div id="lobby" class="screen">
+    <div class="container">
+      <h1 class="title">Room: <span id="roomCode" class="room-code"></span></h1>
+      <p class="subtitle">Share this code with your teammates!</p>
+      <div class="teams-container">
+        <div class="team-panel team-a">
+          <h2 class="team-title team-a-title">Red Team</h2>
+          <ul id="teamAList" class="player-list"></ul>
+        </div>
+        <div class="vs-divider">VS</div>
+        <div class="team-panel team-b">
+          <h2 class="team-title team-b-title">Blue Team</h2>
+          <ul id="teamBList" class="player-list"></ul>
+        </div>
+      </div>
+      <div class="button-row">
+        <button id="btnSwitchTeam" class="btn btn-secondary">Switch Team</button>
+        <button id="btnStart" class="btn btn-primary hidden">Start Match</button>
+      </div>
+      <p id="lobbyError" class="error hidden"></p>
+      <p class="controls-hint">Controls: WASD/Arrows = Move | Space = Kick | Shift = Sprint</p>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="gameScreen" class="screen">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <!-- Results Screen -->
+  <div id="results" class="screen">
+    <div class="container">
+      <h1 class="title" id="resultTitle">Match Over!</h1>
+      <div class="score-display">
+        <div class="score-team score-team-a">
+          <span class="score-label">Red</span>
+          <span class="score-value" id="resultScoreA">0</span>
+        </div>
+        <div class="score-dash">-</div>
+        <div class="score-team score-team-b">
+          <span class="score-value" id="resultScoreB">0</span>
+          <span class="score-label">Blue</span>
+        </div>
+      </div>
+      <button id="btnPlayAgain" class="btn btn-primary hidden">Play Again</button>
+      <p id="waitHost" class="subtitle">Waiting for host to restart...</p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/renderer.js"></script>
+  <script src="/js/game.js"></script>
+  <script src="/js/lobby.js"></script>
+</body>
+</html>
