@@ -26,7 +26,8 @@ function createRoom(hostId, hostName) {
   const room = {
     code,
     hostId,
-    players: new Map(), // socketId -> { name, team, ready }
+    players: new Map(), // socketId -> { name, team }
+    goalkeepers: { A: null, B: null }, // socketId of GK per team
     engine: null,
     state: 'lobby', // lobby | playing | finished
   };
@@ -46,7 +47,11 @@ function getRoomForSocket(socketId) {
 function getPlayerList(room) {
   const list = [];
   for (const [id, p] of room.players) {
-    list.push({ id, name: p.name, team: p.team, isHost: id === room.hostId });
+    list.push({
+      id, name: p.name, team: p.team,
+      isHost: id === room.hostId,
+      isGK: room.goalkeepers[p.team] === id,
+    });
   }
   return list;
 }
@@ -115,8 +120,35 @@ io.on('connection', (socket) => {
       return callback({ error: 'Team is full' });
     }
 
+    // Clear GK if this player was GK on old team
+    const oldTeam = player.team;
+    if (room.goalkeepers[oldTeam] === socket.id) {
+      room.goalkeepers[oldTeam] = null;
+    }
+
     player.team = newTeam;
     callback({ team: newTeam });
+    io.to(room.code).emit('playerJoined', { players: getPlayerList(room) });
+  });
+
+  // Set goalkeeper (host only)
+  socket.on('setGoalkeeper', (data, callback) => {
+    const room = getRoomForSocket(socket.id);
+    if (!room || room.state !== 'lobby') return;
+    if (socket.id !== room.hostId) return callback({ error: 'Only host can set GK' });
+
+    const { playerId, team } = data;
+    const targetPlayer = room.players.get(playerId);
+    if (!targetPlayer || targetPlayer.team !== team) return callback({ error: 'Invalid player' });
+
+    // Toggle: if already GK, unset; otherwise set
+    if (room.goalkeepers[team] === playerId) {
+      room.goalkeepers[team] = null;
+    } else {
+      room.goalkeepers[team] = playerId;
+    }
+
+    callback({ ok: true });
     io.to(room.code).emit('playerJoined', { players: getPlayerList(room) });
   });
 
@@ -137,9 +169,18 @@ io.on('connection', (socket) => {
     room.engine = new GameEngine(room.code);
     room.state = 'playing';
 
+    // Validate: each team must have a GK
+    if (!room.goalkeepers.A || !room.goalkeepers.B) {
+      socket.emit('gameError', 'Each team must have a goalkeeper! (Host: click GK button)');
+      room.engine = null;
+      room.state = 'lobby';
+      return;
+    }
+
     // Add all players to engine
     for (const [id, p] of room.players) {
-      room.engine.addPlayer(id, p.name, p.team);
+      const isGK = room.goalkeepers[p.team] === id;
+      room.engine.addPlayer(id, p.name, p.team, isGK);
     }
 
     // Start the match
@@ -201,6 +242,12 @@ io.on('connection', (socket) => {
     console.log(`Player disconnected: ${socket.id}`);
     const room = getRoomForSocket(socket.id);
     if (!room) return;
+
+    // Clear GK if disconnecting player was GK
+    const dcPlayer = room.players.get(socket.id);
+    if (dcPlayer && room.goalkeepers[dcPlayer.team] === socket.id) {
+      room.goalkeepers[dcPlayer.team] = null;
+    }
 
     room.players.delete(socket.id);
 

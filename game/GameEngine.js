@@ -26,15 +26,17 @@ class GameEngine {
     };
   }
 
-  addPlayer(socketId, name, team) {
+  addPlayer(socketId, name, team, isGK = false) {
     const teamPlayers = this.getTeamPlayers(team);
-    const posIndex = teamPlayers.length;
-    const pos = this.getFormationPosition(team, posIndex);
+    // GK always gets position index 0 (goalkeeper slot)
+    const posIndex = isGK ? 0 : teamPlayers.filter(p => !p.isGK).length + 1;
+    const pos = this.getFormationPosition(team, isGK ? 0 : posIndex);
 
     this.players.set(socketId, {
       id: socketId,
       name: name,
       team: team,
+      isGK: isGK,
       x: pos.x,
       y: pos.y,
       vx: 0,
@@ -114,25 +116,22 @@ class GameEngine {
     this.ball.vx = 0;
     this.ball.vy = 0;
 
-    const teamAPlayers = this.getTeamPlayers(TEAMS.A);
-    const teamBPlayers = this.getTeamPlayers(TEAMS.B);
+    // Reset each team: GK first at index 0, then outfield players
+    [TEAMS.A, TEAMS.B].forEach(team => {
+      const teamPlayers = this.getTeamPlayers(team);
+      const gk = teamPlayers.find(p => p.isGK);
+      const outfield = teamPlayers.filter(p => !p.isGK);
 
-    teamAPlayers.forEach((p, i) => {
-      const pos = this.getFormationPosition(TEAMS.A, i);
-      p.x = pos.x;
-      p.y = pos.y;
-      p.vx = 0;
-      p.vy = 0;
-      p.stamina = PLAYER.STAMINA_MAX;
-    });
-
-    teamBPlayers.forEach((p, i) => {
-      const pos = this.getFormationPosition(TEAMS.B, i);
-      p.x = pos.x;
-      p.y = pos.y;
-      p.vx = 0;
-      p.vy = 0;
-      p.stamina = PLAYER.STAMINA_MAX;
+      if (gk) {
+        const pos = this.getFormationPosition(team, 0);
+        gk.x = pos.x; gk.y = pos.y;
+        gk.vx = 0; gk.vy = 0; gk.stamina = PLAYER.STAMINA_MAX;
+      }
+      outfield.forEach((p, i) => {
+        const pos = this.getFormationPosition(team, i + 1);
+        p.x = pos.x; p.y = pos.y;
+        p.vx = 0; p.vy = 0; p.stamina = PLAYER.STAMINA_MAX;
+      });
     });
   }
 
@@ -392,9 +391,19 @@ class GameEngine {
     const pitchRight = PITCH.WIDTH - PITCH.PADDING - PLAYER.RADIUS;
     const pitchTop = PITCH.PADDING + PLAYER.RADIUS;
     const pitchBottom = PITCH.HEIGHT - PITCH.PADDING - PLAYER.RADIUS;
+    const halfLine = PITCH.WIDTH / 2;
 
     for (const player of this.players.values()) {
-      player.x = clamp(player.x, pitchLeft, pitchRight);
+      if (player.isGK) {
+        // GK restricted to their own half
+        if (player.team === TEAMS.A) {
+          player.x = clamp(player.x, pitchLeft, halfLine - PLAYER.RADIUS);
+        } else {
+          player.x = clamp(player.x, halfLine + PLAYER.RADIUS, pitchRight);
+        }
+      } else {
+        player.x = clamp(player.x, pitchLeft, pitchRight);
+      }
       player.y = clamp(player.y, pitchTop, pitchBottom);
     }
   }
@@ -406,6 +415,7 @@ class GameEngine {
         id: p.id,
         name: p.name,
         team: p.team,
+        isGK: p.isGK,
         x: p.x,
         y: p.y,
         vx: p.vx,

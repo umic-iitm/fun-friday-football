@@ -55,6 +55,31 @@ function updatePlayerList(players) {
     li.appendChild(nameSpan);
 
     const badgeContainer = document.createElement('span');
+    badgeContainer.style.display = 'flex';
+    badgeContainer.style.gap = '4px';
+    badgeContainer.style.alignItems = 'center';
+
+    // GK badge or GK button (host only)
+    if (p.isGK) {
+      const badge = document.createElement('span');
+      badge.className = 'gk-badge';
+      badge.textContent = 'GK';
+      badgeContainer.appendChild(badge);
+    }
+
+    // Host can toggle GK for any player
+    if (isHost) {
+      const gkBtn = document.createElement('button');
+      gkBtn.className = 'gk-btn' + (p.isGK ? ' gk-active' : '');
+      gkBtn.textContent = p.isGK ? 'Remove GK' : 'Set GK';
+      gkBtn.addEventListener('click', () => {
+        socket.emit('setGoalkeeper', { playerId: p.id, team: p.team }, (response) => {
+          if (response.error) showError(lobbyError, response.error);
+        });
+      });
+      badgeContainer.appendChild(gkBtn);
+    }
+
     if (p.isHost) {
       const badge = document.createElement('span');
       badge.className = 'host-badge';
