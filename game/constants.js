@@ -1,9 +1,10 @@
 const GAME = {
   TICK_RATE: 60,
-  MATCH_DURATION: 180, // 3 minutes in seconds
+  MATCH_DURATION: 180, // 3 minutes in seconds (default, host can change)
   COUNTDOWN_DURATION: 3,
-  MAX_PLAYERS_PER_TEAM: 8,
+  MAX_PLAYERS_PER_TEAM: 9,
   ROOM_CODE_LENGTH: 4,
+  HALFTIME_DURATION: 5, // 5 second halftime break
 };
 
 const PITCH = {
@@ -22,8 +23,8 @@ const PITCH = {
 
 const PLAYER = {
   RADIUS: 18,
-  MAX_SPEED: 5.0,
-  SPRINT_SPEED: 7.5,
+  MAX_SPEED: 4.2,
+  SPRINT_SPEED: 6.3,
   ACCELERATION: 0.65,
   DECELERATION: 0.85,
   KICK_POWER: 14,
@@ -53,12 +54,34 @@ const TEAMS = {
 };
 
 const TEAM_COLORS = {
-  A: { fill: '#e53e3e', stroke: '#c53030', name: 'Red' },
-  B: { fill: '#3182ce', stroke: '#2b6cb0', name: 'Blue' },
+  A: { fill: '#e53e3e', stroke: '#c53030', name: 'Chennai&Pune' },
+  B: { fill: '#3182ce', stroke: '#2b6cb0', name: 'Trivandrum&Kochi' },
+};
+
+// Employee ID to name + pre-seeded team mapping
+const EMPLOYEE_MAP = {
+  '2787892': { name: 'Daniyal', team: 'A' },
+  '1608368': { name: 'Likhith', team: 'A' },
+  '2782027': { name: 'Barath', team: 'A' },
+  '2781746': { name: 'Gokkul', team: 'A' },
+  '1793388': { name: 'Kauik', team: 'A' },
+  '2854640': { name: 'Rahul', team: 'A' },
+  '249292':  { name: 'Siva', team: 'A' },
+  '2794571': { name: 'Aditya', team: 'A' },
+  '2790321': { name: 'Prateek', team: 'A' },
+  '2635798': { name: 'Vignesh', team: 'B' },
+  '1950965': { name: 'Abinshah', team: 'B' },
+  '2781889': { name: 'Arjun', team: 'B' },
+  '1943438': { name: 'Grigary', team: 'B' },
+  '1778341': { name: 'Jithin', team: 'B' },
+  '1946865': { name: 'Nikhit', team: 'B' },
+  '1771788': { name: 'Sneha', team: 'B' },
+  '2159976': { name: 'Gilsmon', team: 'B' },
+  '2618781': { name: 'Swathy', team: 'B' },
 };
 
 // Formation positions (normalized 0-1 relative to team half)
-const FORMATIONS_8 = [
+const FORMATIONS_9 = [
   { x: 0.08, y: 0.5 },   // Goalkeeper
   { x: 0.25, y: 0.2 },   // Left Back
   { x: 0.25, y: 0.5 },   // Center Back
@@ -66,7 +89,8 @@ const FORMATIONS_8 = [
   { x: 0.5, y: 0.15 },   // Left Mid
   { x: 0.5, y: 0.5 },    // Center Mid
   { x: 0.5, y: 0.85 },   // Right Mid
-  { x: 0.75, y: 0.5 },   // Striker
+  { x: 0.75, y: 0.35 },  // Striker Left
+  { x: 0.75, y: 0.65 },  // Striker Right
 ];
 
 module.exports = {
@@ -76,5 +100,6 @@ module.exports = {
   BALL,
   TEAMS,
   TEAM_COLORS,
-  FORMATIONS_8,
+  EMPLOYEE_MAP,
+  FORMATIONS_9,
 };

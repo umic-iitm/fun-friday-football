@@ -1,14 +1,17 @@
-const { GAME, PITCH, PLAYER, BALL, TEAMS, FORMATIONS_8 } = require('./constants');
+const { GAME, PITCH, PLAYER, BALL, TEAMS, FORMATIONS_9 } = require('./constants');
 const { distance, normalize, clamp, magnitude, resolveCircleCollision } = require('./utils');
 
 class GameEngine {
-  constructor(roomCode) {
+  constructor(roomCode, matchDuration) {
     this.roomCode = roomCode;
     this.players = new Map(); // socketId -> player state
     this.ball = this.createBall();
     this.score = { A: 0, B: 0 };
-    this.state = 'waiting'; // waiting | countdown | playing | goalScored | finished
-    this.matchTimer = GAME.MATCH_DURATION;
+    this.state = 'waiting'; // waiting | countdown | playing | goalScored | halftime | finished
+    this.matchDuration = matchDuration || GAME.MATCH_DURATION;
+    this.matchTimer = this.matchDuration;
+    this.halfTimeDone = false;
+    this.halfTimeTimer = 0;
     this.countdownTimer = 0;
     this.goalScoredTimer = 0;
     this.lastGoalTeam = null;
@@ -43,7 +46,7 @@ class GameEngine {
       vy: 0,
       radius: PLAYER.RADIUS,
       stamina: PLAYER.STAMINA_MAX,
-      input: { up: false, down: false, left: false, right: false, kick: false, sprint: false },
+      input: { up: false, down: false, left: false, right: false, kick: false, pass: false, sprint: false },
     });
   }
 
@@ -56,7 +59,7 @@ class GameEngine {
   }
 
   getFormationPosition(team, index) {
-    const formation = FORMATIONS_8[index % FORMATIONS_8.length];
+    const formation = FORMATIONS_9[index % FORMATIONS_9.length];
     const pitchLeft = PITCH.PADDING;
     const pitchTop = PITCH.PADDING;
     const pitchW = PITCH.WIDTH - PITCH.PADDING * 2;
@@ -92,7 +95,8 @@ class GameEngine {
     this.state = 'countdown';
     this.countdownTimer = GAME.COUNTDOWN_DURATION;
     this.score = { A: 0, B: 0 };
-    this.matchTimer = GAME.MATCH_DURATION;
+    this.matchTimer = this.matchDuration;
+    this.halfTimeDone = false;
     this.resetPositions();
     this.startLoop();
   }
@@ -156,6 +160,15 @@ class GameEngine {
       return;
     }
 
+    if (this.state === 'halftime') {
+      this.halfTimeTimer -= 1 / GAME.TICK_RATE;
+      if (this.halfTimeTimer <= 0) {
+        this.halfTimeDone = true;
+        this.startCountdown();
+      }
+      return;
+    }
+
     if (this.state !== 'playing') return;
 
     // Update match timer
@@ -164,6 +177,14 @@ class GameEngine {
       this.matchTimer = 0;
       this.state = 'finished';
       this.stopLoop();
+      return;
+    }
+
+    // Check for half-time
+    if (!this.halfTimeDone && this.matchTimer <= this.matchDuration / 2) {
+      this.state = 'halftime';
+      this.halfTimeTimer = GAME.HALFTIME_DURATION;
+      this.resetPositions();
       return;
     }
 
@@ -256,6 +277,12 @@ class GameEngine {
       this.handleKick(player);
       input.kick = false; // one-shot
     }
+
+    // Handle pass
+    if (input.pass) {
+      this.handlePass(player);
+      input.pass = false; // one-shot
+    }
   }
 
   handleKick(player) {
@@ -266,6 +293,34 @@ class GameEngine {
     // Kick power scales with proximity
     const proximityFactor = 1 - (dist / (PLAYER.RADIUS + BALL.RADIUS + PLAYER.KICK_RANGE));
     const power = PLAYER.KICK_POWER * (0.5 + 0.5 * proximityFactor);
+
+    this.ball.vx = dir.x * power;
+    this.ball.vy = dir.y * power;
+  }
+
+  handlePass(player) {
+    // Must be near the ball to pass
+    const distToBall = distance(player, this.ball);
+    if (distToBall > PLAYER.RADIUS + BALL.RADIUS + PLAYER.KICK_RANGE) return;
+
+    // Find nearest teammate (excluding self)
+    let nearestTeammate = null;
+    let nearestDist = Infinity;
+    for (const p of this.players.values()) {
+      if (p.id === player.id || p.team !== player.team) continue;
+      const d = distance(player, p);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestTeammate = p;
+      }
+    }
+
+    if (!nearestTeammate) return;
+
+    // Direct the ball toward the nearest teammate
+    const dir = normalize(nearestTeammate.x - this.ball.x, nearestTeammate.y - this.ball.y);
+    // Pass power scales with distance — stronger for farther teammates, capped
+    const power = Math.min(PLAYER.KICK_POWER * 0.85, 4 + nearestDist * 0.02);
 
     this.ball.vx = dir.x * power;
     this.ball.vy = dir.y * power;
@@ -409,6 +464,8 @@ class GameEngine {
   }
 
   getState() {
+    const r1 = (v) => Math.round(v * 10) / 10;
+
     const players = [];
     for (const p of this.players.values()) {
       players.push({
@@ -416,26 +473,27 @@ class GameEngine {
         name: p.name,
         team: p.team,
         isGK: p.isGK,
-        x: p.x,
-        y: p.y,
-        vx: p.vx,
-        vy: p.vy,
-        stamina: p.stamina,
+        x: r1(p.x),
+        y: r1(p.y),
+        vx: r1(p.vx),
+        vy: r1(p.vy),
+        stamina: Math.round(p.stamina),
       });
     }
 
     return {
       players,
       ball: {
-        x: this.ball.x,
-        y: this.ball.y,
-        vx: this.ball.vx,
-        vy: this.ball.vy,
+        x: r1(this.ball.x),
+        y: r1(this.ball.y),
+        vx: r1(this.ball.vx),
+        vy: r1(this.ball.vy),
       },
       score: this.score,
       state: this.state,
-      matchTimer: this.matchTimer,
+      matchTimer: r1(this.matchTimer),
       countdownTimer: Math.ceil(this.countdownTimer),
+      halfTimeTimer: Math.ceil(this.halfTimeTimer),
       lastGoalTeam: this.lastGoalTeam,
     };
   }

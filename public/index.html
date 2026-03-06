@@ -11,10 +11,10 @@
   <div id="landing" class="screen active">
     <div class="container">
       <h1 class="title">Fun Friday Football</h1>
-      <p class="subtitle">8v8 Multiplayer</p>
+      <p class="subtitle">9v9 Multiplayer</p>
       <div class="ball-icon">&#9917;</div>
       <div class="form-group">
-        <input type="text" id="playerName" placeholder="Enter your name" maxlength="15" autocomplete="off">
+        <input type="text" id="playerName" placeholder="Enter your Employee ID" maxlength="10" autocomplete="off">
       </div>
       <div class="button-row">
         <button id="btnCreate" class="btn btn-primary">Create Room</button>
@@ -37,21 +37,31 @@
       <p class="subtitle">Share this code with your teammates!</p>
       <div class="teams-container">
         <div class="team-panel team-a">
-          <h2 class="team-title team-a-title">Red Team</h2>
+          <h2 class="team-title team-a-title">Chennai&Pune</h2>
           <ul id="teamAList" class="player-list"></ul>
         </div>
         <div class="vs-divider">VS</div>
         <div class="team-panel team-b">
-          <h2 class="team-title team-b-title">Blue Team</h2>
+          <h2 class="team-title team-b-title">Trivandrum&Kochi</h2>
           <ul id="teamBList" class="player-list"></ul>
         </div>
+      </div>
+      <div class="match-duration-row" id="matchDurationRow" style="display:none; margin: 12px 0; align-items: center; justify-content: center; gap: 10px;">
+        <label for="matchDuration" style="color: #ccc; font-size: 14px;">Match Duration:</label>
+        <select id="matchDuration" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #555; background: #2a2a2a; color: #fff; font-size: 14px;">
+          <option value="2">2 mins</option>
+          <option value="3" selected>3 mins</option>
+          <option value="5">5 mins</option>
+          <option value="7">7 mins</option>
+          <option value="10">10 mins</option>
+        </select>
       </div>
       <div class="button-row">
         <button id="btnSwitchTeam" class="btn btn-secondary">Switch Team</button>
         <button id="btnStart" class="btn btn-primary hidden">Start Match</button>
       </div>
       <p id="lobbyError" class="error hidden"></p>
-      <p class="controls-hint">Controls: WASD/Arrows = Move | Space = Kick | Shift = Sprint</p>
+      <p class="controls-hint">Controls: WASD/Arrows = Move | Space = Kick | P = Pass | Shift = Sprint</p>
     </div>
   </div>
 
@@ -66,13 +76,13 @@
       <h1 class="title" id="resultTitle">Match Over!</h1>
       <div class="score-display">
         <div class="score-team score-team-a">
-          <span class="score-label">Red</span>
+          <span class="score-label">Chennai&Pune</span>
           <span class="score-value" id="resultScoreA">0</span>
         </div>
         <div class="score-dash">-</div>
         <div class="score-team score-team-b">
           <span class="score-value" id="resultScoreB">0</span>
-          <span class="score-label">Blue</span>
+          <span class="score-label">Trivandrum&Kochi</span>
         </div>
       </div>
       <button id="btnPlayAgain" class="btn btn-primary hidden">Play Again</button>

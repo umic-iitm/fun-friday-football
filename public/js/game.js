@@ -3,7 +3,10 @@ let gameActive = false;
 let gameSocket = null;
 let animFrameId = null;
 let latestGameState = null;
+let prevGameState = null;
+let stateReceivedAt = 0;
 let mySocketId = null;
+const LERP_DURATION = 50; // ms to interpolate between states
 
 // Input state
 const keys = {
@@ -12,6 +15,7 @@ const keys = {
   left: false,
   right: false,
   kick: false,
+  pass: false,
   sprint: false,
 };
 
@@ -22,6 +26,7 @@ const KEY_MAP = {
   'ArrowLeft': 'left', 'a': 'left', 'A': 'left',
   'ArrowRight': 'right', 'd': 'right', 'D': 'right',
   ' ': 'kick',
+  'p': 'pass', 'P': 'pass',
   'Shift': 'sprint',
 };
 
@@ -35,14 +40,17 @@ function startGame(socket, data) {
 
   // Listen for game state
   socket.on('gameState', (state) => {
+    prevGameState = latestGameState;
     latestGameState = state;
+    stateReceivedAt = performance.now();
   });
 
-  // Start render loop
+  // Start render loop with interpolation
   function renderLoop() {
     if (!gameActive) return;
     if (latestGameState) {
-      gameRenderer.render(latestGameState, mySocketId);
+      const renderState = interpolateState(prevGameState, latestGameState);
+      gameRenderer.render(renderState, mySocketId);
     }
     animFrameId = requestAnimationFrame(renderLoop);
   }
@@ -65,6 +73,38 @@ function stopGame() {
     gameSocket.off('gameState');
   }
   latestGameState = null;
+  prevGameState = null;
+}
+
+function interpolateState(prev, latest) {
+  if (!prev || !latest || prev.state !== 'playing' || latest.state !== 'playing') return latest;
+
+  const elapsed = performance.now() - stateReceivedAt;
+  const t = Math.min(elapsed / LERP_DURATION, 1);
+
+  const lerp = (a, b) => a + (b - a) * t;
+
+  const players = latest.players.map((lp) => {
+    const pp = prev.players.find(p => p.id === lp.id);
+    if (!pp) return lp;
+    return {
+      ...lp,
+      x: lerp(pp.x, lp.x),
+      y: lerp(pp.y, lp.y),
+    };
+  });
+
+  return {
+    ...latest,
+    players,
+    ball: {
+      ...latest.ball,
+      x: lerp(prev.ball.x, latest.ball.x),
+      y: lerp(prev.ball.y, latest.ball.y),
+      vx: latest.ball.vx,
+      vy: latest.ball.vy,
+    },
+  };
 }
 
 let lastInputSent = '';
@@ -74,11 +114,11 @@ function onKeyDown(e) {
   if (!action) return;
   e.preventDefault();
 
-  if (action === 'kick') {
-    // Kick is a one-shot — send immediately
-    keys.kick = true;
+  if (action === 'kick' || action === 'pass') {
+    // One-shot actions — send immediately
+    keys[action] = true;
     sendInput();
-    keys.kick = false;
+    keys[action] = false;
   } else {
     keys[action] = true;
     sendInput();
@@ -90,7 +130,7 @@ function onKeyUp(e) {
   if (!action) return;
   e.preventDefault();
 
-  if (action !== 'kick') {
+  if (action !== 'kick' && action !== 'pass') {
     keys[action] = false;
     sendInput();
   }
@@ -101,7 +141,7 @@ function sendInput() {
 
   // Only send if input changed (or kick)
   const inputStr = JSON.stringify(keys);
-  if (inputStr !== lastInputSent || keys.kick) {
+  if (inputStr !== lastInputSent || keys.kick || keys.pass) {
     lastInputSent = inputStr;
     gameSocket.emit('playerInput', { ...keys });
   }

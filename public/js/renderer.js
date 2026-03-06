@@ -21,14 +21,16 @@ const TEAM_COLORS = {
     jersey: '#c0392b', jerseyLight: '#e74c3c', jerseyDark: '#962d22',
     shorts: '#2c3e50', socks: '#c0392b',
     skin: '#f5cba7', skinDark: '#e0ac69',
-    name: 'Red',
+    name: 'Chennai&Pune',
+    shortName: 'CHE&PUN',
     gkJersey: '#f39c12', gkJerseyLight: '#f1c40f', gkJerseyDark: '#d68910',
   },
   B: {
     jersey: '#2471a3', jerseyLight: '#3498db', jerseyDark: '#1a5276',
     shorts: '#ecf0f1', socks: '#2471a3',
     skin: '#f5cba7', skinDark: '#e0ac69',
-    name: 'Blue',
+    name: 'Trivandrum&Kochi',
+    shortName: 'TRV&KCH',
     gkJersey: '#27ae60', gkJerseyLight: '#2ecc71', gkJerseyDark: '#1e8449',
   },
 };
@@ -106,6 +108,10 @@ class Renderer {
 
     if (gameState.state === 'goalScored') {
       this.drawGoalCelebration(ctx, gameState.lastGoalTeam);
+    }
+
+    if (gameState.state === 'halftime') {
+      this.drawHalfTime(ctx, gameState.halfTimeTimer);
     }
 
     // Update particles
@@ -617,7 +623,7 @@ class Renderer {
     const cx = PITCH.WIDTH / 2;
 
     // === FIFA-style scoreboard ===
-    const hudW = 360;
+    const hudW = 440;
     const hudH = 50;
     const hudX = cx - hudW / 2;
     const hudY = 8;
@@ -639,18 +645,18 @@ class Renderer {
     // Team A side
     ctx.fillStyle = TEAM_COLORS.A.jersey;
     ctx.beginPath();
-    ctx.roundRect(hudX + 8, hudY + 10, 70, 30, 4);
+    ctx.roundRect(hudX + 8, hudY + 10, 90, 30, 4);
     ctx.fill();
-    ctx.font = 'bold 15px Arial, sans-serif';
+    ctx.font = 'bold 12px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff';
-    ctx.fillText('RED', hudX + 43, hudY + 26);
+    ctx.fillText(TEAM_COLORS.A.shortName, hudX + 53, hudY + 26);
 
     // Team A score
     ctx.font = 'bold 28px "Courier New", monospace';
     ctx.fillStyle = '#fff';
-    ctx.fillText(state.score.A, hudX + 120, hudY + 28);
+    ctx.fillText(state.score.A, hudX + 140, hudY + 28);
 
     // Separator
     ctx.font = 'bold 18px Arial';
@@ -660,16 +666,16 @@ class Renderer {
     // Team B score
     ctx.font = 'bold 28px "Courier New", monospace';
     ctx.fillStyle = '#fff';
-    ctx.fillText(state.score.B, hudX + hudW - 120, hudY + 28);
+    ctx.fillText(state.score.B, hudX + hudW - 140, hudY + 28);
 
     // Team B side
     ctx.fillStyle = TEAM_COLORS.B.jersey;
     ctx.beginPath();
-    ctx.roundRect(hudX + hudW - 78, hudY + 10, 70, 30, 4);
+    ctx.roundRect(hudX + hudW - 98, hudY + 10, 90, 30, 4);
     ctx.fill();
-    ctx.font = 'bold 15px Arial, sans-serif';
+    ctx.font = 'bold 12px Arial, sans-serif';
     ctx.fillStyle = '#fff';
-    ctx.fillText('BLUE', hudX + hudW - 43, hudY + 26);
+    ctx.fillText(TEAM_COLORS.B.shortName, hudX + hudW - 53, hudY + 26);
 
     // Timer pill
     const minutes = Math.floor(state.matchTimer / 60);
@@ -707,7 +713,7 @@ class Renderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.fillText('WASD/Arrows: Move  |  SPACE: Kick  |  SHIFT: Sprint', cx, PITCH.HEIGHT - 8);
+    ctx.fillText('WASD/Arrows: Move  |  SPACE: Kick  |  P: Pass  |  SHIFT: Sprint', cx, PITCH.HEIGHT - 8);
   }
 
   drawCountdown(ctx, timer) {
@@ -801,7 +807,60 @@ class Renderer {
     ctx.font = 'bold 32px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
-    ctx.fillText(`${colors.name} Team Scores!`, PITCH.WIDTH / 2, PITCH.HEIGHT / 2 + 50);
+    ctx.fillText(`${colors.name} Scores!`, PITCH.WIDTH / 2, PITCH.HEIGHT / 2 + 50);
+  }
+
+  drawHalfTime(ctx, timer) {
+    // Dark overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, PITCH.WIDTH, PITCH.HEIGHT);
+
+    // Decorative lines
+    const cx = PITCH.WIDTH / 2;
+    const cy = PITCH.HEIGHT / 2;
+
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 250, cy - 60);
+    ctx.lineTo(cx + 250, cy - 60);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - 250, cy + 60);
+    ctx.lineTo(cx + 250, cy + 60);
+    ctx.stroke();
+
+    // "HALF TIME" text
+    ctx.save();
+    ctx.translate(cx, cy - 15);
+
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 30;
+
+    ctx.font = 'bold 80px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.lineWidth = 6;
+    ctx.strokeText('HALF TIME', 0, 0);
+
+    const htGrad = ctx.createLinearGradient(-200, -30, 200, 30);
+    htGrad.addColorStop(0, '#ffd700');
+    htGrad.addColorStop(0.5, '#fff');
+    htGrad.addColorStop(1, '#ffd700');
+    ctx.fillStyle = htGrad;
+    ctx.fillText('HALF TIME', 0, 0);
+
+    ctx.restore();
+    ctx.shadowBlur = 0;
+
+    // Timer countdown
+    const secs = Math.ceil(timer);
+    ctx.font = 'bold 28px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.fillText(`Resuming in ${secs}...`, cx, cy + 35);
   }
 
   updateParticles(ctx) {

@@ -3,7 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const GameEngine = require('./game/GameEngine');
-const { GAME, TEAMS, TEAM_COLORS } = require('./game/constants');
+const { GAME, TEAMS, TEAM_COLORS, EMPLOYEE_MAP } = require('./game/constants');
 const { generateRoomCode } = require('./game/utils');
 
 const app = express();
@@ -17,7 +17,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Room storage
 const rooms = new Map(); // roomCode -> room data
 
-function createRoom(hostId, hostName) {
+function createRoom(hostId, hostName, hostTeam, hostEmpId) {
   let code;
   do {
     code = generateRoomCode();
@@ -26,13 +26,14 @@ function createRoom(hostId, hostName) {
   const room = {
     code,
     hostId,
-    players: new Map(), // socketId -> { name, team }
+    players: new Map(), // socketId -> { name, team, empId }
     goalkeepers: { A: null, B: null }, // socketId of GK per team
     engine: null,
     state: 'lobby', // lobby | playing | finished
+    matchDuration: GAME.MATCH_DURATION,
   };
 
-  room.players.set(hostId, { name: hostName, team: TEAMS.A });
+  room.players.set(hostId, { name: hostName, team: hostTeam, empId: hostEmpId });
   rooms.set(code, room);
   return room;
 }
@@ -68,22 +69,28 @@ io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
 
   // Create a new room
-  socket.on('createRoom', (name, callback) => {
-    if (!name || name.trim().length === 0) {
-      return callback({ error: 'Name is required' });
+  socket.on('createRoom', (empId, callback) => {
+    if (!empId || empId.trim().length === 0) {
+      return callback({ error: 'Employee ID is required' });
     }
-    const room = createRoom(socket.id, name.trim().substring(0, 15));
+    const id = empId.trim();
+    const emp = EMPLOYEE_MAP[id];
+    const name = emp ? emp.name : `Player-${id.slice(-4)}`;
+    const team = emp ? emp.team : TEAMS.A;
+
+    const room = createRoom(socket.id, name, team, id);
     socket.join(room.code);
-    console.log(`Room ${room.code} created by ${name}`);
+    console.log(`Room ${room.code} created by ${name} (${id})`);
     callback({ roomCode: room.code, players: getPlayerList(room) });
   });
 
   // Join an existing room
   socket.on('joinRoom', (data, callback) => {
-    const { name, roomCode } = data;
-    if (!name || name.trim().length === 0) {
-      return callback({ error: 'Name is required' });
+    const { empId, roomCode } = data;
+    if (!empId || empId.trim().length === 0) {
+      return callback({ error: 'Employee ID is required' });
     }
+    const id = empId.trim();
     const code = (roomCode || '').toUpperCase().trim();
     const room = rooms.get(code);
 
@@ -93,15 +100,27 @@ io.on('connection', (socket) => {
       return callback({ error: 'Room is full' });
     }
 
-    // Auto-assign to team with fewer players
-    const teamACount = teamCount(room, TEAMS.A);
-    const teamBCount = teamCount(room, TEAMS.B);
-    const team = teamACount <= teamBCount ? TEAMS.A : TEAMS.B;
+    const emp = EMPLOYEE_MAP[id];
+    const name = emp ? emp.name : `Player-${id.slice(-4)}`;
+    let team;
+    if (emp) {
+      // Pre-seeded team, but check if that team is full
+      team = emp.team;
+      if (teamCount(room, team) >= GAME.MAX_PLAYERS_PER_TEAM) {
+        const otherTeam = team === TEAMS.A ? TEAMS.B : TEAMS.A;
+        team = otherTeam;
+      }
+    } else {
+      // Unknown employee — place in team with fewer players
+      const teamACount = teamCount(room, TEAMS.A);
+      const teamBCount = teamCount(room, TEAMS.B);
+      team = teamACount <= teamBCount ? TEAMS.A : TEAMS.B;
+    }
 
-    room.players.set(socket.id, { name: name.trim().substring(0, 15), team });
+    room.players.set(socket.id, { name, team, empId: id });
     socket.join(code);
 
-    console.log(`${name} joined room ${code} on Team ${team}`);
+    console.log(`${name} (${id}) joined room ${code} on Team ${team}`);
     callback({ roomCode: code, players: getPlayerList(room), yourTeam: team });
 
     // Notify others
@@ -152,6 +171,18 @@ io.on('connection', (socket) => {
     io.to(room.code).emit('playerJoined', { players: getPlayerList(room) });
   });
 
+  // Set match duration (host only)
+  socket.on('setMatchDuration', (minutes, callback) => {
+    const room = getRoomForSocket(socket.id);
+    if (!room || room.state !== 'lobby') return;
+    if (socket.id !== room.hostId) return callback && callback({ error: 'Only host can change duration' });
+    const mins = parseInt(minutes);
+    if (!mins || mins < 1 || mins > 10) return callback && callback({ error: 'Duration must be 1-10 minutes' });
+    room.matchDuration = mins * 60;
+    if (callback) callback({ ok: true });
+    io.to(room.code).emit('matchDurationChanged', mins);
+  });
+
   // Start game (host only)
   socket.on('startGame', () => {
     const room = getRoomForSocket(socket.id);
@@ -165,8 +196,8 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Create game engine
-    room.engine = new GameEngine(room.code);
+    // Create game engine with configurable duration
+    room.engine = new GameEngine(room.code, room.matchDuration);
     room.state = 'playing';
 
     // Validate: each team must have a GK
@@ -191,12 +222,12 @@ io.on('connection', (socket) => {
       players: getPlayerList(room),
     });
 
-    // Game state broadcast loop
+    // Game state broadcast loop (20 Hz — engine still ticks at 60)
     room.broadcastInterval = setInterval(() => {
       if (!room.engine) return;
 
       const state = room.engine.getState();
-      io.to(room.code).emit('gameState', state);
+      io.to(room.code).volatile.emit('gameState', state);
 
       if (state.state === 'finished') {
         clearInterval(room.broadcastInterval);
@@ -206,7 +237,7 @@ io.on('connection', (socket) => {
           players: getPlayerList(room),
         });
       }
-    }, 1000 / GAME.TICK_RATE);
+    }, 1000 / 20);
 
     console.log(`Game started in room ${room.code}`);
   });

@@ -106,18 +106,24 @@ function updatePlayerList(players) {
   if (me) {
     isHost = me.isHost;
     btnStart.classList.toggle('hidden', !isHost);
+    matchDurationRow.style.display = isHost ? 'flex' : 'none';
   }
 }
 
+// Match duration elements
+const matchDurationRow = document.getElementById('matchDurationRow');
+const matchDurationSelect = document.getElementById('matchDuration');
+
 // Landing - Create Room
 btnCreate.addEventListener('click', () => {
-  const name = playerNameInput.value.trim();
-  if (!name) return showError(landingError, 'Please enter your name');
+  const empId = playerNameInput.value.trim();
+  if (!empId) return showError(landingError, 'Please enter your Employee ID');
 
-  socket.emit('createRoom', name, (response) => {
+  socket.emit('createRoom', empId, (response) => {
     if (response.error) return showError(landingError, response.error);
     currentRoom = response.roomCode;
     isHost = true;
+    matchDurationRow.style.display = 'flex';
     roomCodeDisplay.textContent = response.roomCode;
     updatePlayerList(response.players);
     showScreen(lobbyScreen);
@@ -132,12 +138,12 @@ btnJoinShow.addEventListener('click', () => {
 
 // Landing - Join Room
 btnJoin.addEventListener('click', () => {
-  const name = playerNameInput.value.trim();
-  if (!name) return showError(landingError, 'Please enter your name');
+  const empId = playerNameInput.value.trim();
+  if (!empId) return showError(landingError, 'Please enter your Employee ID');
   const roomCode = roomCodeInput.value.trim().toUpperCase();
   if (!roomCode) return showError(landingError, 'Please enter a room code');
 
-  socket.emit('joinRoom', { name, roomCode }, (response) => {
+  socket.emit('joinRoom', { empId, roomCode }, (response) => {
     if (response.error) return showError(landingError, response.error);
     currentRoom = response.roomCode;
     roomCodeDisplay.textContent = response.roomCode;
@@ -159,6 +165,15 @@ btnSwitchTeam.addEventListener('click', () => {
   socket.emit('switchTeam', (response) => {
     if (response.error) showError(lobbyError, response.error);
   });
+});
+
+// Lobby - Match duration change (host only)
+matchDurationSelect.addEventListener('change', () => {
+  socket.emit('setMatchDuration', matchDurationSelect.value);
+});
+
+socket.on('matchDurationChanged', (mins) => {
+  matchDurationSelect.value = mins;
 });
 
 // Lobby - Start Game
@@ -190,10 +205,10 @@ socket.on('gameFinished', (data) => {
   resultScoreB.textContent = data.score.B;
 
   if (data.score.A > data.score.B) {
-    resultTitle.textContent = 'Red Team Wins!';
+    resultTitle.textContent = 'Chennai&Pune Wins!';
     resultTitle.style.color = '#e53e3e';
   } else if (data.score.B > data.score.A) {
-    resultTitle.textContent = 'Blue Team Wins!';
+    resultTitle.textContent = 'Trivandrum&Kochi Wins!';
     resultTitle.style.color = '#3182ce';
   } else {
     resultTitle.textContent = "It's a Draw!";
